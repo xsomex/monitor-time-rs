@@ -12,7 +12,7 @@ use regex::Regex;
 #[tokio::main]
 async fn main() -> mongodb::error::Result<()> {
     let mut config: String = String::new();
-    File::open("./config").unwrap().read_to_string(&mut config).unwrap();
+    File::open("./config.txt").unwrap().read_to_string(&mut config).unwrap();
     let uri = config.lines().collect::<Vec<&str>>()[0];
     let client = Client::with_uri_str(uri).await?;
     let database = client.database("code_time");
@@ -96,7 +96,7 @@ fn millis_to_readable(ms: i64) -> String {
     let mut s = ms/1000;
     let mut min = s/60;
     s -= min*60;
-    let h = s/60;
+    let h = min/60;
     min -= h*60;
     format!("{}h {}min {}s", h, min, s)
 }
