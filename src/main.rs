@@ -21,8 +21,11 @@ async fn main() -> mongodb::error::Result<()> {
         _ => ()
     };
 
-    println!("Total time: {}", millis_to_readable(sum_time(collection).await?));   
+    println!("Total time: {}", millis_to_readable(sum_time(&collection).await?));
+
+    println!("Latest 24h: {}", millis_to_readable(latest(&collection, 24*3600).await?));
+
+    println!("Daily average: {}", millis_to_readable(daily_average(&collection).await?.round() as i64));
 
     Ok(())
 }
-

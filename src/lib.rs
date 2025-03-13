@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::Read,
+    io::Read, process::Command,
 };
 
 use futures::TryStreamExt;
@@ -123,7 +123,7 @@ pub async fn try_add_from_file(path: &str, collection: &Collection<Document>) ->
     Ok(())
 }
 
-pub async fn sum_time(collection: Collection<Document>) -> mongodb::error::Result<i64> {
+pub async fn sum_time(collection: &Collection<Document>) -> mongodb::error::Result<i64> {
     let mut cursor = collection.aggregate([doc! {
         "$group": doc! {
             "_id": "null",
@@ -148,4 +148,65 @@ pub fn millis_to_readable(ms: i64) -> String {
     let h = min/60;
     min -= h*60;
     format!("{}h {}min {}s", h, min, s)
+}
+
+pub async fn latest(collection: &Collection<Document>, s: i64) -> mongodb::error::Result<i64> {
+    let from = String::from_utf8(Command::new("date").arg("+%s").output().unwrap().stdout).unwrap();
+    let from = (from[0..from.len()-1].parse::<i64>().unwrap()-s)*1000;
+    let mut cursor = collection.aggregate([
+        doc! {
+            "$match": doc! {
+                "begin": doc! {
+                    "$gte": from
+                }
+            }
+        },
+        doc! {
+            "$group": doc! {
+                "_id": "null",
+                "total_time": doc! {
+                    "$sum": "$duration"
+                }
+            }
+        }
+    ]).await?;
+    while let Some(result) = cursor.try_next().await? {
+        return Ok(result.get_i64("total_time").unwrap());
+    }
+    Ok(0)
+
+}
+
+pub async fn daily_average(collection: &Collection<Document>) -> mongodb::error::Result<f64> {
+    let mut cursor = collection.aggregate([
+        doc! {
+            "$project": {
+                "day": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                        "date": { "$toDate": { "$multiply": ["$begin", 1] } }
+                    }
+                },
+                "duration": 1
+            }
+        },
+        doc! {
+            "$group": doc! {
+                "_id": "$day",
+                "total_time": doc! {
+                    "$sum": "$duration"
+                }
+            }
+        },
+        doc! {
+            "$group": doc! {
+                "_id": "null",
+                "average": doc! { "$avg": "$total_time" }
+            }
+        }
+    ]).await?;
+    while let Some(result) = cursor.try_next().await? {
+        return Ok(result.get_f64("average").unwrap());
+    }
+    Ok(0.0)
 }
